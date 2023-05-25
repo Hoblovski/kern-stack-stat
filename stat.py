@@ -18,19 +18,6 @@ def parse_asm(
     with open(infile, 'r') as fin:
         lines = fin.readlines()
 
-    def is_end_of_fn(line, parts):
-        return len(parts) == 0
-    def is_start_of_fn(line, parts):
-        return parts[-1].endswith('>:')
-    def is_sp_adjust(line, parts):
-        return len(parts) >= 2 and parts[-1].endswith(',%esp') and parts[-2] == 'sub'
-    def is_indirect_call(line, parts):
-        return len(parts) >= 2 and parts[-2] in {'call', 'jmp'} and ('+' not in parts[-1])
-    def is_direct_call(line, parts):
-        return len(parts) >= 3 and parts[-3] in {'call', 'jmp'} and ('+' not in parts[-1])
-    def sanity_check(line, parts):
-        return not(any(part == 'call' for part in parts))
-
     curfn = None
     fns = []
     framesz = {}
@@ -40,10 +27,10 @@ def parse_asm(
         ParseLocation = lineno
         line = line.strip()
         parts = line.split()
-        if is_end_of_fn(line, parts):
+        if len(parts) == 0:
             # empty line: end of fn
             curfn = None
-        elif is_start_of_fn(line, parts):
+        elif parts[-1].endswith('>:'):
             # start of fn
             assert len(parts) == 2
             assert parts[1].startswith('<')
@@ -51,7 +38,7 @@ def parse_asm(
             fns.append(curfn)
             framesz[curfn] = None
             calls[curfn] = []
-        elif is_sp_adjust(line, parts): 
+        elif len(parts) >= 2 and parts[-1].endswith(',%esp') and parts[-2] == 'sub':
             fsz = parts[-1].split(',')[0]
             assert fsz.startswith('$0x')
             fsz = int(fsz[3:], 16)
@@ -60,16 +47,20 @@ def parse_asm(
                 # Assume: only the first is framealloc
                 pass
             framesz[curfn] = fsz
-        elif is_indirect_call(line, parts):
+        elif (
+            len(parts) >= 2 and parts[-2] in {'call', 'jmp'} and ('+' not in parts[-1])
+        ):
             assert parts[-1].startswith('*')
             calls[curfn].append(INDIRECT)
-        elif is_direct_call(line, parts):
+        elif (
+            len(parts) >= 3 and parts[-3] in {'call', 'jmp'} and ('+' not in parts[-1])
+        ):
             assert parts[-1].startswith('<')
             assert parts[-1].endswith('>')
             callee = parts[-1][1:-1]
             calls[curfn].append(callee)
         else:
-            if not sanity_check(line, parts):
+            if any(part == 'call' for part in parts):
                 print(lineno + 1)
                 assert False
 
