@@ -22,11 +22,13 @@ def parse_asm(
     fns = []
     framesz = {}
     calls = {}
+
     for lineno, line in enumerate(lines):
         global ParseLocation
         ParseLocation = lineno
         line = line.strip()
         parts = line.split()
+
         if len(parts) == 0:
             # empty line: end of fn
             curfn = None
